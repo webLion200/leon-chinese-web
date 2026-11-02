@@ -1,0 +1,12 @@
+services:
+  nextjs:
+    build: .
+    image: leon-chinese-web:1.0.0 # ***具体项目具体修改***
+    container_name: leon-chinese-web
+    ports:
+      - "3000:3000" # ***具体项目具体修改***
+    environment:
+      - NODE_ENV=production
+      - PORT=3000 # ***具体项目具体修改***
+    platform: linux/amd64 # 🔑 强制使用 amd64
+    restart: unless-stopped

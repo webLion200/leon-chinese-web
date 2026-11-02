@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --z-primary: #673ab7; /* 主紫色 */
+  --z-primary-light: #ede7f6; /* 主色浅色：菜单选中状态 */
+  --z-secondary: #64748b; /* 辅助色：深灰色 */
+  --z-accent: #9c27b0; /* 强调色：亮紫色 */
+  --z-neutral: #f3e5f5; /* 中性色：浅紫色背景 */
+  --z-neutral-dark: #334155; /* 中性深色：文字 */
+  --z-border-color: #e0e0e0; /* 边框颜色 */
+  --z-online-status: #10b981; /* 在线状态 */
+  --z-offline-status: #4b5563; /* 离线状态 */
+  --z-warning-status: #ef4444; /* 告警状态 */
+}
+
+@theme {
+  --color-z-primary: var(--z-primary); /* 主紫色 */
+  --color-z-primary-light: var(--z-primary-light); /* 主色浅色：菜单选中状态 */
+  --color-z-secondary: var(--z-secondary); /* 辅助色：深灰色 */
+  --color-z-accent: var(--z-accent); /* 强调色：亮紫色 */
+  --color-z-neutral: var(--z-neutral); /* 中性色：浅紫色背景 */
+  --color-z-neutral-dark: var(--z-neutral-dark); /* 中性深色：文字 */
+  --color-z-border-color: var(--z-border-color); /* 边框颜色 */
+  --color-z-online-status: var(--z-online-status); /* 在线状态 */
+  --color-z-offline-status: var(--z-offline-status); /* 离线状态 */
+  --color-z-warning-status: var(--z-warning-status); /* 告警状态 */
+}
+
+/* @media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+} */
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}

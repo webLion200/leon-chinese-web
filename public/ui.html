@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>车载系统后台管理</title>
+    <style>
+      /* 基础样式重置 */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      /* 颜色变量 - 紫色主题 */
+      :root {
+        --primary: #673ab7; /* 主紫色 */
+        --secondary: #64748b; /* 辅助色：深灰色 */
+        --accent: #9c27b0; /* 强调色：亮紫色 */
+        --neutral: #f3e5f5; /* 中性色：浅紫色背景 */
+        --neutral-dark: #334155; /* 中性深色：文字 */
+        --primary-light: #ede7f6; /* 主色浅色：菜单选中状态 */
+        --border-color: #e0e0e0; /* 边框颜色 */
+        --online-status: #10b981; /* 在线状态 */
+        --offline-status: #4b5563; /* 离线状态 */
+        --warning-status: #ef4444; /* 告警状态 */
+      }
+
+      body {
+        background-color: #f8fafc;
+        color: var(--neutral-dark);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* 顶部导航栏 */
+      .header {
+        background-color: var(--primary);
+        color: white;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+
+      .header .logo {
+        display: flex;
+        align-items: center;
+      }
+
+      .header .logo .icon {
+        font-size: 24px;
+        margin-right: 8px;
+      }
+
+      .header .logo .text {
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      .header .user-actions {
+        display: flex;
+        align-items: center;
+      }
+
+      .header .user-actions .notification {
+        position: relative;
+        margin-right: 24px;
+        cursor: pointer;
+      }
+
+      .header .user-actions .notification .badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background-color: #ef4444;
+        color: white;
+        font-size: 10px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .header .user-actions .user-info {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      .header .user-actions .user-info .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 2px solid white;
+        margin-right: 8px;
+      }
+
+      /* 主内容区 */
+      .main-content {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* 左侧菜单 */
+      .menu {
+        width: 240px;
+        background-color: white;
+        border-right: 1px solid var(--border-color);
+        transition: width 0.3s ease;
+        overflow: hidden;
+      }
+
+      .menu.collapsed {
+        width: 64px;
+      }
+
+      .menu .menu-header {
+        padding: 16px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .menu .menu-header .title {
+        font-size: 16px;
+        font-weight: 600;
+        transition: opacity 0.3s ease;
+      }
+
+      .menu.collapsed .menu-header .title {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .menu .menu-header .toggle-btn {
+        cursor: pointer;
+        color: var(--secondary);
+        transition: color 0.3s ease;
+      }
+
+      .menu .menu-header .toggle-btn:hover {
+        color: var(--primary);
+      }
+
+      .menu .menu-items {
+        list-style: none;
+        padding: 8px 0;
+      }
+
+      .menu .menu-items li {
+        margin: 4px 0;
+      }
+
+      .menu .menu-items li a {
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        color: var(--secondary);
+        text-decoration: none;
+        transition: all 0.3s ease;
+        position: relative;
+      }
+
+      .menu .menu-items li a:hover {
+        background-color: var(--primary-light);
+        color: var(--primary);
+      }
+
+      .menu .menu-items li a.active {
+        background-color: var(--primary-light);
+        color: var(--primary);
+        border-right: 4px solid var(--primary);
+      }
+
+      .menu .menu-items li a .icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+        margin-right: 16px;
+      }
+
+      .menu .menu-items li a .text {
+        transition: opacity 0.3s ease;
+      }
+
+      .menu.collapsed .menu-items li a .text {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* 右侧内容区 */
+      .content {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+        background-color: #f8fafc;
+      }
+
+      .content.expanded {
+        margin-left: -176px;
+      }
+
+      /* 面包屑导航 */
+      .breadcrumb {
+        margin-bottom: 24px;
+      }
+
+      .breadcrumb ul {
+        list-style: none;
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        color: var(--secondary);
+      }
+
+      .breadcrumb ul li {
+        display: flex;
+        align-items: center;
+      }
+
+      .breadcrumb ul li:not(:last-child)::after {
+        content: ">";
+        margin: 0 8px;
+        color: #cbd5e1;
+      }
+
+      .breadcrumb ul li a {
+        color: var(--secondary);
+        text-decoration: none;
+        transition: color 0.3s ease;
+      }
+
+      .breadcrumb ul li a:hover {
+        color: var(--primary);
+      }
+
+      .breadcrumb ul li.active {
+        color: var(--primary);
+      }
+
+      /* 选项卡区域 */
+      .tabs {
+        background-color: white;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 24px;
+      }
+
+      .tabs .tab-list {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .tabs .tab-list .tab {
+        padding: 16px 24px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--secondary);
+        border-bottom: 2px solid transparent;
+        transition: all 0.3s ease;
+      }
+
+      .tabs .tab-list .tab:hover {
+        color: var(--primary);
+      }
+
+      .tabs .tab-list .tab.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+      }
+
+      /* 表单区域 */
+      .form {
+        background-color: white;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+
+      .form h3 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+      }
+
+      .form .form-group {
+        margin-bottom: 16px;
+      }
+
+      .form .form-group label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--secondary);
+        margin-bottom: 8px;
+      }
+
+      .form .form-group input,
+      .form .form-group select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        font-size: 14px;
+        color: var(--neutral-dark);
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .form .form-group input:focus,
+      .form .form-group select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px rgba(103, 58, 183, 0.2);
+      }
+
+      .form .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 24px;
+      }
+
+      .form .form-actions button {
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        margin-left: 12px;
+      }
+
+      .form .form-actions .reset-btn {
+        background-color: white;
+        border: 1px solid #cbd5e1;
+        color: var(--secondary);
+      }
+
+      .form .form-actions .reset-btn:hover {
+        background-color: #f8fafc;
+      }
+
+      .form .form-actions .search-btn {
+        background-color: var(--primary);
+        border: none;
+        color: white;
+      }
+
+      .form .form-actions .search-btn:hover {
+        background-color: #512da8;
+      }
+
+      /* 表格区域 */
+      .table {
+        background-color: white;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        padding: 24px;
+      }
+
+      .table .table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .table .table-header h3 {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .table .table-header .add-btn {
+        background-color: var(--accent);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+
+      .table .table-header .add-btn:hover {
+        background-color: #8e24aa;
+      }
+
+      .table .table-content {
+        overflow-x: auto;
+      }
+
+      .table .table-content table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .table .table-content table thead {
+        background-color: #f8fafc;
+      }
+
+      .table .table-content table th,
+      .table .table-content table td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 14px;
+      }
+
+      .table .table-content table th {
+        color: var(--secondary);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 12px;
+      }
+
+      .table .table-content table td {
+        color: var(--neutral-dark);
+      }
+
+      .table .table-content table tbody tr:hover {
+        background-color: #f8fafc;
+      }
+
+      .table .table-content table .status-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .table .table-content table .status-tag.online {
+        background-color: #ecfdf5;
+        color: var(--online-status);
+      }
+
+      .table .table-content table .status-tag.offline {
+        background-color: #f3f4f6;
+        color: var(--offline-status);
+      }
+
+      .table .table-content table .status-tag.warning {
+        background-color: #fee2e2;
+        color: var(--warning-status);
+      }
+
+      .table .table-content table .actions a {
+        margin-right: 16px;
+        text-decoration: none;
+        transition: color 0.3s ease;
+      }
+
+      .table .table-content table .actions .view {
+        color: var(--primary);
+      }
+
+      .table .table-content table .actions .edit {
+        color: var(--secondary);
+      }
+
+      .table .table-content table .actions .delete {
+        color: var(--warning-status);
+      }
+
+      .table .table-content table .actions a:hover {
+        text-decoration: underline;
+      }
+
+      /* 分页控件 */
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 24px;
+        font-size: 14px;
+        color: var(--secondary);
+      }
+
+      .pagination .page-info {
+        font-size: 14px;
+      }
+
+      .pagination .page-controls {
+        display: flex;
+      }
+
+      .pagination .page-controls button {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #cbd5e1;
+        background-color: white;
+        margin-left: 4px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pagination .page-controls button:hover {
+        background-color: #f8fafc;
+      }
+
+      .pagination .page-controls button.active {
+        background-color: var(--primary);
+        color: white;
+        border-color: var(--primary);
+      }
+
+      /* 响应式设计 */
+      @media (max-width: 768px) {
+        .menu {
+          display: none;
+        }
+
+        .content {
+          margin-left: 0 !important;
+        }
+
+        .tabs .tab-list {
+          flex-wrap: wrap;
+        }
+
+        .tabs .tab-list .tab {
+          padding: 12px 16px;
+        }
+
+        .form .form-group {
+          margin-bottom: 12px;
+        }
+
+        .table .table-content table th,
+        .table .table-content table td {
+          padding: 8px 12px;
+        }
+      }
+
+      /* 自定义图标样式 */
+      .icon {
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        stroke-width: 0;
+        stroke: currentColor;
+        fill: currentColor;
+        text-align: center;
+      }
+
+      /* 菜单折叠动画 */
+      .menu-transition {
+        transition: all 0.3s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 顶部导航栏 -->
+    <div class="header">
+      <div class="logo">
+        <div class="icon">🚗</div>
+        <div class="text">车载系统管理平台</div>
+      </div>
+      <div class="user-actions">
+        <div class="notification">
+          <div class="icon">🔔</div>
+          <div class="badge">3</div>
+        </div>
+        <div class="user-info">
+          <img
+            src="https://picsum.photos/id/1005/200/200"
+            alt="用户头像"
+            class="avatar"
+          />
+          <span>管理员</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+      <!-- 左侧菜单 -->
+      <div class="menu" id="menu">
+        <div class="menu-header">
+          <div class="title">主菜单</div>
+          <div class="toggle-btn" onclick="toggleMenu()">
+            <div class="icon">≡</div>
+          </div>
+        </div>
+        <nav class="menu-items">
+          <ul>
+            <li>
+              <a href="#" class="active">
+                <div class="icon">📊</div>
+                <span class="text">仪表盘</span>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <div class="icon">🚗</div>
+                <span class="text">车辆管理</span>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <div class="icon">📍</div>
+                <span class="text">位置追踪</span>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <div class="icon">⚠️</div>
+                <span class="text">告警管理</span>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <div class="icon">📈</div>
+                <span class="text">数据分析</span>
+              </a>
+            </li>
+            <li>
+              <a href="#">
+                <div class="icon">⚙️</div>
+                <span class="text">系统设置</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+
+      <!-- 右侧内容区 -->
+      <div class="content" id="content">
+        <!-- 面包屑导航 -->
+        <div class="breadcrumb">
+          <ul>
+            <li><a href="#">首页</a></li>
+            <li><a href="#">车辆管理</a></li>
+            <li class="active">车辆列表</li>
+          </ul>
+        </div>
+
+        <!-- 选项卡区域 -->
+        <div class="tabs">
+          <div class="tab-list">
+            <div class="tab active">全部车辆</div>
+            <div class="tab">在线车辆</div>
+            <div class="tab">离线车辆</div>
+            <div class="tab">告警车辆</div>
+          </div>
+        </div>
+
+        <!-- 表单区域 -->
+        <div class="form">
+          <h3>筛选条件</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="form-group">
+              <label for="plateNumber">车牌号</label>
+              <input type="text" id="plateNumber" placeholder="请输入车牌号" />
+            </div>
+            <div class="form-group">
+              <label for="vehicleType">车辆类型</label>
+              <select id="vehicleType">
+                <option value="">全部类型</option>
+                <option value="sedan">轿车</option>
+                <option value="suv">SUV</option>
+                <option value="truck">货车</option>
+                <option value="bus">客车</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="status">在线状态</label>
+              <select id="status">
+                <option value="">全部状态</option>
+                <option value="online">在线</option>
+                <option value="offline">离线</option>
+                <option value="warning">告警</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="reset-btn">重置</button>
+            <button class="search-btn">
+              <div class="icon">🔍</div>
+              查询
+            </button>
+          </div>
+        </div>
+
+        <!-- 表格区域 -->
+        <div class="table">
+          <div class="table-header">
+            <h3>车辆列表</h3>
+            <button class="add-btn">
+              <div class="icon">➕</div>
+              新增车辆
+            </button>
+          </div>
+          <div class="table-content">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>车牌号</th>
+                  <th>车辆类型</th>
+                  <th>司机</th>
+                  <th>状态</th>
+                  <th>最后位置</th>
+                  <th>最后更新</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>001</td>
+                  <td>京A12345</td>
+                  <td>轿车</td>
+                  <td>张三</td>
+                  <td><span class="status-tag online">在线</span></td>
+                  <td>北京市朝阳区</td>
+                  <td>2023-06-01 10:30</td>
+                  <td class="actions">
+                    <a href="#" class="view">查看</a>
+                    <a href="#" class="edit">编辑</a>
+                    <a href="#" class="delete">删除</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>002</td>
+                  <td>京B67890</td>
+                  <td>SUV</td>
+                  <td>李四</td>
+                  <td><span class="status-tag warning">告警</span></td>
+                  <td>北京市海淀区</td>
+                  <td>2023-06-01 10:15</td>
+                  <td class="actions">
+                    <a href="#" class="view">查看</a>
+                    <a href="#" class="edit">编辑</a>
+                    <a href="#" class="delete">删除</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td>003</td>
+                  <td>京C54321</td>
+                  <td>货车</td>
+                  <td>王五</td>
+                  <td><span class="status-tag offline">离线</span></td>
+                  <td>北京市丰台区</td>
+                  <td>2023-06-01 09:45</td>
+                  <td class="actions">
+                    <a href="#" class="view">查看</a>
+                    <a href="#" class="edit">编辑</a>
+                    <a href="#" class="delete">删除</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <div class="page-info">共 <span>24</span> 条记录</div>
+            <div class="page-controls">
+              <button><div class="icon">〈</div></button>
+              <button class="active">1</button>
+              <button>2</button>
+              <button>3</button>
+              <button><div class="icon">〉</div></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // 菜单折叠功能
+      function toggleMenu() {
+        const menu = document.getElementById("menu");
+        const content = document.getElementById("content");
+
+        menu.classList.toggle("collapsed");
+        content.classList.toggle("expanded");
+      }
+
+      // 选项卡切换功能
+      document.querySelectorAll(".tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach((t) => {
+            t.classList.remove("active");
+          });
+          tab.classList.add("active");
+        });
+      });
+    </script>
+  </body>
+</html>
