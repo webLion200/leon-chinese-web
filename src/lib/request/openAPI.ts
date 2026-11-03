@@ -1,7 +1,14 @@
 import { getToken } from "@/utils/auth";
 import { OpenAPIConfig, Interceptors } from "./types";
 
-const apiBase = process.env.NEXT_PUBLIC_HOST + process.env.NEXT_PUBLIC_API;
+const apiHost = process.env.NEXT_PUBLIC_HOST?.replace(/\/+$/, "");
+const apiPrefix = process.env.NEXT_PUBLIC_API?.replace(/^\/+|\/+$/g, "");
+
+if (!apiHost || !apiPrefix) {
+  throw new Error("NEXT_PUBLIC_HOST and NEXT_PUBLIC_API must be configured");
+}
+
+const apiBase = `${apiHost}/${apiPrefix}`;
 
 export const OpenAPI: OpenAPIConfig = {
   BASE: apiBase,
