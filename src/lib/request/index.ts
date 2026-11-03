@@ -14,6 +14,7 @@ import {
   getResponseBody,
   getResponseHeader,
   catchErrorCodes,
+  isApiResponse,
 } from "./core";
 import { OpenAPI } from "./openAPI";
 
@@ -42,29 +43,38 @@ export const request = <T>(
         response = await fn(response);
       }
 
-      const responseBody = await getResponseBody(response);
+      let responseBody = await getResponseBody(response);
       const responseHeader = getResponseHeader(
         response,
         options.responseHeader,
       );
-      const transformedBody =
-        options.responseTransformer && response.ok
-          ? await options.responseTransformer(responseBody)
-          : config.responseTransformer && response.ok
-            ? await config.responseTransformer<T>(responseBody)
-            : responseBody;
+      if (response.ok) {
+        const transform = options.responseTransformer ?? config.responseTransformer;
+        if (transform && isApiResponse(responseBody) && responseBody.data !== undefined) {
+          const transformedData = await transform(responseBody.data);
+          responseBody = {
+            ...responseBody,
+            data: transformedData,
+          };
+        }
+      }
 
+      // Always validate the server's envelope before exposing a selected header value.
       const result: ApiResult = {
         url,
         ok: response.ok,
         status: response.status,
         statusText: response.statusText,
-        body: responseHeader ?? transformedBody,
+        body: responseBody,
       };
 
       catchErrorCodes(options, result);
 
-      resolve(result.body as ApiResponse<T>);
+      if (responseHeader) {
+        resolve({ code: 0, message: "success", data: responseHeader } as ApiResponse<T>);
+      } else {
+        resolve(result.body as ApiResponse<T>);
+      }
     } catch (error) {
       reject(error);
     }
@@ -73,7 +83,7 @@ export const request = <T>(
 
 export const Get = <T>(
   path: string,
-  query?: Record<string, any>,
+  query?: Record<string, unknown>,
   options?: Partial<ApiRequestOptions<T>>,
 ): CancelablePromise<ApiResponse<T>> => {
   return request<T>(OpenAPI, {

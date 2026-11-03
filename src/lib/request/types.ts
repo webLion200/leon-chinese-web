@@ -28,18 +28,18 @@ export interface OpenAPIConfig {
     request: Interceptors<RequestInit>;
     response: Interceptors<Response>;
   };
-  responseTransformer?: <T>(data: any) => T | Promise<T>;
+  responseTransformer?: <T>(data: unknown) => T | Promise<T>;
 }
 
 export interface ApiRequestOptions<T> {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   path: string;
   headers?: Record<string, string>;
-  query?: Record<string, any>;
-  formData?: Record<string, any>;
-  body?: any;
+  query?: Record<string, unknown>;
+  formData?: Record<string, string | Blob | number | boolean | Array<string | Blob | number | boolean> | null | undefined>;
+  body?: unknown;
   responseHeader?: string;
-  responseTransformer?: (data: any) => Promise<T> | T;
+  responseTransformer?: (data: unknown) => Promise<T> | T;
   errorCodes?: number[];
   timeout?: number; // 设置接口超时时间
 }
@@ -60,8 +60,8 @@ export interface ApiResult {
  *   data?: T
  * }
  */
-export type ApiResponse<T = any> = {
+export type ApiResponse<T = unknown> = {
   code: number;
   message: string;
   data?: T;
-} & Record<string, any>;
+};

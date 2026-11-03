@@ -1,5 +1,7 @@
 export class CancelablePromise<T> extends Promise<T> {
-  private _isCancelled = false;
+  private readonly cancelRequest: () => void;
+  private cancelled = false;
+
   constructor(
     executor: (
       resolve: (value: T | PromiseLike<T>) => void,
@@ -7,15 +9,26 @@ export class CancelablePromise<T> extends Promise<T> {
       onCancel: { isCancelled: boolean },
     ) => void,
   ) {
+    let cancel!: () => void;
     const cancelState = { isCancelled: false };
-    super((resolve, reject) => executor(resolve, reject, cancelState));
+
+    super((resolve, reject) => {
+      cancel = () => {
+        cancelState.isCancelled = true;
+      };
+      executor(resolve, reject, cancelState);
+    });
+
+    this.cancelRequest = cancel;
   }
 
-  public cancel() {
-    this._isCancelled = true;
+  public cancel(): void {
+    if (this.cancelled) return;
+    this.cancelled = true;
+    this.cancelRequest();
   }
 
   public get isCancelled(): boolean {
-    return this._isCancelled;
+    return this.cancelled;
   }
 }

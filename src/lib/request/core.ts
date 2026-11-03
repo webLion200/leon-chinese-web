@@ -1,123 +1,200 @@
 import { ApiRequestOptions, ApiResult, OpenAPIConfig } from "./types";
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: number,
+    public readonly data?: unknown,
+    public readonly url?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export class RequestCancelledError extends Error {
+  constructor() {
+    super("Request cancelled");
+    this.name = "RequestCancelledError";
+  }
+}
+
+export class RequestTimeoutError extends Error {
+  constructor(timeout: number) {
+    super(`Request timeout after ${timeout}ms`);
+    this.name = "RequestTimeoutError";
+  }
+}
+
 export const getUrl = (
   config: OpenAPIConfig,
-  options: ApiRequestOptions<any>,
+  options: ApiRequestOptions<unknown>,
 ): string => {
   const baseUrl = config.BASE.replace(/\/$/, "");
   let path = options.path;
   if (config.ENCODE_PATH) path = config.ENCODE_PATH(path);
 
-  const query = options.query
-    ? new URLSearchParams(options.query).toString()
-    : "";
-  return `${baseUrl}${path}${query ? `?${query}` : ""}`;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(options.query ?? {})) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null) params.append(key, String(item));
+      });
+    } else if (typeof value === "object") {
+      params.set(key, JSON.stringify(value));
+    } else {
+      params.set(key, String(value));
+    }
+  }
+
+  const query = params.toString();
+  return `${baseUrl}${path}${query ? `${path.includes("?") ? "&" : "?"}${query}` : ""}`;
 };
 
 export const getHeaders = async (
   config: OpenAPIConfig,
-  options: ApiRequestOptions<any>,
-): Promise<HeadersInit> => {
-  let headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-  if (config.HEADERS) {
-    const resolved =
-      typeof config.HEADERS === "function"
-        ? await config.HEADERS()
-        : config.HEADERS;
-    headers = { ...resolved, ...headers };
-  }
+  options: ApiRequestOptions<unknown>,
+): Promise<Headers> => {
+  const headers = new Headers(config.HEADERS ? await resolve(config.HEADERS) : undefined);
+  new Headers(options.headers).forEach((value, key) => headers.set(key, value));
   if (config.TOKEN) {
-    const token =
-      typeof config.TOKEN === "function" ? await config.TOKEN() : config.TOKEN;
-    // @ts-expect-error - 类型错误
-    headers["Authorization"] = `Bearer ${token}`;
+    const token = await resolve(config.TOKEN);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
   }
   return headers;
 };
 
+const resolve = async <T>(value: T | (() => T | Promise<T>)): Promise<T> =>
+  typeof value === "function" ? (value as () => T | Promise<T>)() : value;
+
 export const getFormData = (
-  options: ApiRequestOptions<any>,
+  options: ApiRequestOptions<unknown>,
 ): FormData | undefined => {
   if (!options.formData) return undefined;
   const formData = new FormData();
-  for (const key in options.formData) {
-    formData.append(key, options.formData[key]);
+  for (const [key, value] of Object.entries(options.formData)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      value.forEach((item) => appendFormValue(formData, key, item));
+    } else {
+      appendFormValue(formData, key, value);
+    }
   }
   return formData;
 };
 
-export const getRequestBody = (options: ApiRequestOptions<any>): any => {
-  if (options.formData) return undefined;
-  return options.body ? JSON.stringify(options.body) : undefined;
+const appendFormValue = (formData: FormData, key: string, value: string | Blob | number | boolean): void => {
+  formData.append(key, value instanceof Blob ? value : String(value));
+};
+
+export const getRequestBody = (options: ApiRequestOptions<unknown>): BodyInit | undefined => {
+  if (options.formData || options.body === undefined || options.body === null) return undefined;
+  if (
+    typeof options.body === "string" ||
+    options.body instanceof Blob ||
+    options.body instanceof ArrayBuffer ||
+    options.body instanceof URLSearchParams
+  ) {
+    return options.body;
+  }
+  return JSON.stringify(options.body);
 };
 
 export const sendRequest = async (
   config: OpenAPIConfig,
-  options: ApiRequestOptions<any>,
+  options: ApiRequestOptions<unknown>,
   url: string,
-  body: any,
+  body: BodyInit | undefined,
   formData: FormData | undefined,
-  headers: HeadersInit,
+  headers: Headers,
   onCancel: { isCancelled: boolean },
 ): Promise<Response> => {
   const controller = new AbortController();
-  const timeout = options.timeout ?? 60 * 1000; // 默认 60 秒超时
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const timeout = options.timeout ?? 60_000;
+  let timedOut = false;
+  const timeoutId = timeout > 0
+    ? setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeout)
+    : undefined;
 
-  let requestInit: RequestInit = {
-    method: options.method,
-    headers,
-    body: formData || body,
-    credentials: config.CREDENTIALS,
-    signal: controller.signal, // ✅ 注入 signal
-  };
+  const abortForCancel = () => controller.abort();
+  if (onCancel.isCancelled) throw new RequestCancelledError();
+  const checkCancelled = setInterval(() => {
+    if (onCancel.isCancelled) abortForCancel();
+  }, 25);
+
+  if (formData) {
+    headers.delete("Content-Type");
+  } else if (body !== undefined && typeof body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   try {
+    let requestInit: RequestInit = {
+      method: options.method,
+      headers,
+      body: formData ?? body,
+      credentials: config.CREDENTIALS,
+      signal: controller.signal,
+    };
+
     for (const interceptor of config.interceptors.request._fns) {
       requestInit = await interceptor(requestInit);
     }
+    if (onCancel.isCancelled) throw new RequestCancelledError();
+    return await fetch(url, requestInit);
+  } catch (error) {
+    if (onCancel.isCancelled) throw new RequestCancelledError();
+    if (timedOut) throw new RequestTimeoutError(timeout);
+    throw error;
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    clearInterval(checkCancelled);
+  }
+};
 
-    if (onCancel.isCancelled) throw new Error("Request cancelled");
-
-    const response = await fetch(url, requestInit);
-    clearTimeout(timeoutId); // ✅ 请求成功则清除定时器
-    return response;
-  } catch (err: any) {
-    if (err.name === "AbortError") {
-      throw new Error(`Request timeout after ${timeout}ms`);
+export const getResponseBody = async (response: Response): Promise<unknown> => {
+  if (response.status === 204 || response.status === 205) return undefined;
+  const text = await response.text();
+  if (!text) return undefined;
+  const contentType = response.headers.get("Content-Type") ?? "";
+  if (contentType.includes("application/json") || contentType.includes("+json")) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("The server returned invalid JSON");
     }
-    throw err;
   }
+  return text;
 };
 
-export const getResponseBody = async (response: Response): Promise<any> => {
-  const contentType = response.headers.get("Content-Type") || "";
-  if (contentType.includes("application/json")) {
-    return await response.json();
-  } else {
-    return await response.text();
+export const getResponseHeader = (response: Response, header?: string): string | null =>
+  header ? response.headers.get(header) : null;
+
+export const isApiResponse = (value: unknown): value is { code: number; message: string; data?: unknown } =>
+  typeof value === "object" && value !== null &&
+  typeof (value as { code?: unknown }).code === "number" &&
+  typeof (value as { message?: unknown }).message === "string";
+
+export const catchErrorCodes = (options: ApiRequestOptions<unknown>, result: ApiResult): void => {
+  const apiResponse = isApiResponse(result.body) ? result.body : undefined;
+  if (!result.ok || (options.errorCodes && options.errorCodes.includes(result.status))) {
+    throw new ApiError(
+      apiResponse?.message || result.statusText || "Request failed",
+      result.status,
+      apiResponse?.code,
+      apiResponse?.data,
+      result.url,
+    );
   }
-};
-
-export const getResponseHeader = (
-  response: Response,
-  header?: string,
-): string | null => {
-  return header ? response.headers.get(header) : null;
-};
-
-export const catchErrorCodes = (
-  options: ApiRequestOptions<any>,
-  result: ApiResult,
-): void => {
-  if (
-    !result.ok ||
-    (options.errorCodes && options.errorCodes.includes(result.status))
-  ) {
-    const message = typeof result.body === "object" && result.body?.message;
-    throw new Error(message || result.statusText);
+  if (!apiResponse) {
+    throw new ApiError("The server returned an invalid API response", result.status, undefined, result.body, result.url);
+  }
+  if (apiResponse.code !== 0) {
+    throw new ApiError(apiResponse.message || "Request failed", result.status, apiResponse.code, apiResponse.data, result.url);
   }
 };
